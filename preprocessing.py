@@ -1,9 +1,6 @@
-import pandas as pd
+import pandas
 import re
-import multiprocessing
 import collections
-from load_development_dataset import df 
-
 
 def generate_content_types(email):
     output = collections.defaultdict(bool)
@@ -41,7 +38,7 @@ def generate_number_of_images(email):
 
 def generate_contact_numbers(email):
     def normalize(contacts):
-        if pd.isnull(contacts):
+        if pandas.isnull(contacts):
             return []
         else:
             contacts = str(contacts)
@@ -52,19 +49,25 @@ def generate_contact_numbers(email):
     check = ['to', 'x-to', 'from', 'x-from', 'cc', 'x-cc', 'bcc', 'x-bcc']
     output = {}
     
+    # We use -1 to mean that the header was not present in the original email
     for header in check:
-        output[header] = 0
+        output['people_in_' + header] = -1
     
     for header in email.keys():
         header = header.lower()
         
         if header in check:
-            output[header] = len(normalize(email[header]))
+            output['people_in_' + header] = len(normalize(email[header]))
     
     return output
 
 def generate_upper_to_lower_case_ratios(email):
-    output = collections.defaultdict(float)
+    import html2text
+
+    output = {
+        'title_case_words_to_words_ratio': 0.0,
+        'upper_case_letters_to_letters_ratio': 0.0
+    }
 
     r_words = re.compile(r'\b\w+\b')
     r_upper_words = re.compile(r'\b[A-Z]\w*\b')
@@ -74,18 +77,28 @@ def generate_upper_to_lower_case_ratios(email):
     for content in email.walk():
         content_type = content.get_content_type()
 
-        if content_type[:4] in ['text', 'html']:
-            if content_type.startswith('text/'):
+        if content_type in ('text/plain', 'text/html'):
+            if content_type.endswith('plain'):
                 body = content.get_payload()
-            elif content_type.startswith('html/'):
-                body = html2text(content.get_payload())
+            elif content_type.endswith('html'):
+                body = html2text.html2text(content.get_payload())
 
-            totat_words = len(r_words.findall(body))
+            total_words = len(r_words.findall(body))
             upper_case_words = len(r_upper_words.findall(body))
-            totat_letters = len(r_words.findall(body))
+            total_letters = len(r_words.findall(body))
             upper_case_letters = len(r_upper_words.findall(body))
-            output['title_case_words_to_words_ratio'] = upper_case_words / total_words
-            output['upper_case_letters_to_letters_ratio'] = upper_case_letters / total_letters
+
+            # We use -1 to mean that the amount could not be computed because of a problem in the data
+            # Notice that this is different than not being computed because of a different format
+            if total_words > 0:
+                output['title_case_words_to_words_ratio'] = upper_case_words / total_words
+            else:
+                output['title_case_words_to_words_ratio'] = -1.0
+
+            if total_letters > 0:
+                output['upper_case_letters_to_letters_ratio'] = upper_case_letters / total_letters
+            else:
+                output['upper_case_letters_to_letters_ratio'] = -1.0
 
     return output
 
@@ -136,17 +149,18 @@ def transform_row(x):
     
     return current
 
-print("Processing")
-pool = multiprocessing.Pool(2)
+if __name__ == '__main__':
+    import multiprocessing
+    import email
 
-# Create dataframe
-transformed = pool.map(transform_row, df.iterrows())
+    print("Loading data")
+    dataset = pandas.read_msgpack('./data/development.msg', encoding='latin-1')
+    dataset['email'] = dataset['email'].apply(email.message_from_string)
 
-print("Done!")
+    print("Processing")
+    pool = multiprocessing.Pool(4)
+    transformed = pool.map(transform_row, dataset.iterrows())
 
-try:
-    del ds
-except:
-    pass
-
-ds = pd.DataFrame(transformed)
+    print("Dumping to disk")
+    preprocessed = pandas.DataFrame(transformed)
+    preprocessed.to_msgpack('./data/processed.msg')
