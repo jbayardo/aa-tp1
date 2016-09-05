@@ -1,6 +1,6 @@
 import json
-import pandas as pd
-import numpy as np
+import pandas
+import numpy
 
 # Leo los mails (poner los paths correctos).
 ham_txt = json.load(open('./data/ham_dev.json'))
@@ -23,11 +23,11 @@ for (nro, text) in enumerate(txt):
     output.append(current)
 
 # This is the merged, created dataset
-df = pd.DataFrame(output)
+df = pandas.DataFrame(output)
 
 # Split and save holdout and training data
 # We hold out about 10% of the data
-mask = np.random.rand(len(df)) < 0.8
+mask = numpy.random.rand(len(df)) < 0.8
 
 development = df[mask]
 development.to_msgpack('./data/development.msg')

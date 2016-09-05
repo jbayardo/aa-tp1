@@ -103,9 +103,9 @@ def generate_upper_to_lower_case_ratios(email):
     return output
 
 def generate_subject_features(email):
-    def get_subject(x):
+    def get_subject(email):
         try:
-            s = re.search(r'^(fwd|re|fw):', x['subject'], re.IGNORECASE)
+            s = re.search(r'^(fwd|re|fw):', email['subject'], re.IGNORECASE)
 
             if s is not None:
                 return s.group(1).lower()
@@ -127,6 +127,7 @@ def generate_subject_features(email):
     return output
 
 # Functions which create the output features
+# These must always return a dictionary with the same keys for eveyr row, all of which must be non-null
 transforms = [
     lambda email: {'length': len(email)},
     generate_content_types,
@@ -136,7 +137,7 @@ transforms = [
     generate_upper_to_lower_case_ratios,
     generate_subject_features]
 
-# Set up thread pool
+# Process a single row, as received from the pandas.DataFrame iterator
 def transform_row(x):
     (index, row) = x
 
@@ -144,23 +145,27 @@ def transform_row(x):
         'class': row['class']
     }
     
+    # Apply the transform features to the email object
     for function in transforms:
         current.update(function(row['email']))
     
     return current
 
+# WARNING: This check is required to avoid loading the dataset again when creating a new thread
 if __name__ == '__main__':
     import multiprocessing
     import email
 
-    print("Loading data")
+    # Load dataset
     dataset = pandas.read_msgpack('./data/development.msg', encoding='latin-1')
     dataset['email'] = dataset['email'].apply(email.message_from_string)
 
-    print("Processing")
+    # Set up multiprocessing pool
+    # WARNING: number of threads should be no more than #cores + 1
     pool = multiprocessing.Pool(4)
+    # Generate features for every row
     transformed = pool.map(transform_row, dataset.iterrows())
 
-    print("Dumping to disk")
+    # Dump the processed dataset to disk
     preprocessed = pandas.DataFrame(transformed)
     preprocessed.to_msgpack('./data/processed.msg')
