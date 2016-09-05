@@ -85,8 +85,8 @@ def generate_upper_to_lower_case_ratios(email):
 
             total_words = len(r_words.findall(body))
             upper_case_words = len(r_upper_words.findall(body))
-            total_letters = len(r_words.findall(body))
-            upper_case_letters = len(r_upper_words.findall(body))
+            total_letters = len(r_letters.findall(body))
+            upper_case_letters = len(r_upper_letters.findall(body))
 
             # We use -1 to mean that the amount could not be computed because of a problem in the data
             # Notice that this is different than not being computed because of a different format
