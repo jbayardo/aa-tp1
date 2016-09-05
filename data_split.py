@@ -1,7 +1,6 @@
 import json
 import pandas as pd
 import numpy as np
-import email as em
 
 # Leo los mails (poner los paths correctos).
 ham_txt = json.load(open('./data/ham_dev.json'))
@@ -10,24 +9,16 @@ spam_txt = json.load(open('./data/spam_dev.json'))
 txt = ham_txt + spam_txt
 output = []
 
-# Headers to include in attributes
-whitelist = ['from', 'date', 'content-type', 'subject', 'mime-version', 'to', 'content-transfer-encoding', 'message-id', 'x-from', 'x-filename', 'x-origin', 'x-to', 'x-cc', 'x-bcc', 'x-priority', 'x-msmail-priority', 'x-mimeole', 'cc', 'bcc', 'received', 'x-mailer', 'reply-to', 'user-agent']
-
 for (nro, text) in enumerate(txt):
     current = {}
 
     if nro <= len(ham_txt):
-        current['class'] = 'ham'
+        # HAM es -1
+        current['class'] = -1
     else:
-        current['class'] = 'spam'
+        # SPAM es 1
+        current['class'] = 1
 
-    email = em.message_from_string(text)
-
-    # Include headers
-    for (key, data) in email.items():
-        if key in whitelist:
-            current[key] = data
-    
     current['email'] = text
     output.append(current)
 

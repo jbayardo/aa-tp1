@@ -3,7 +3,7 @@ import re
 import multiprocessing
 import collections
 from load_development_dataset import df 
-from html2text import html2text
+
 
 def generate_content_types(row):
     email = row['email']
@@ -26,7 +26,7 @@ def generate_number_of_spaces(row):
         'newlines': email.count('\n')
     }
 
-def number_of_images(row):
+def generate_number_of_images(row):
     email = row['email']
     output = { 'multipart_number': 0, 'number_of_images': 0 }
     rgx = re.compile('\.(jpeg|jpg|png|gif|bmp)')
@@ -41,20 +41,48 @@ def number_of_images(row):
     
     return output
 
-def case(row):
+def generate_contact_numbers(row):
+    def normalize(contacts):
+        if pd.isnull(contacts):
+            return []
+        else:
+            contacts = str(contacts)
+            contacts = ''.join([x for x in contacts if x not in ['#', '\n', '\t', '\r']])
+            contacts = contacts.split(',')
+            return [c for c in contacts if c != '']
+    
+    check = ['to', 'x-to', 'from', 'x-from', 'cc', 'x-cc', 'bcc', 'x-bcc']
+    output = {}
+    
+    for header in check:
+        output[header] = 0
+    
+    for header in row['email'].keys():
+        header = header.lower()
+        
+        if header in check:
+            output[header] = len(normalize(row['email'][header]))
+    
+    return output
+
+def generate_upper_to_lower_case_ratios(row):
     email = row['email']
     output = collections.defaultdict(float)
+
     r_words = re.compile(r'\b\w+\b')
     r_upper_words = re.compile(r'\b[A-Z]\w*\b')
     r_letters = re.compile(r'\[a-z]')
     r_upper_letters = re.compile(r'[A-Z]')
+
     for content in email.walk():
         content_type = content.get_content_type()
+
         if content_type[:4] in ['text', 'html']:
             if content_type.startswith('text/'):
                 body = content.get_payload()
             elif content_type.startswith('html/'):
                 body = html2text(content.get_payload())
+
             totat_words = len(r_words.findall(body))
             upper_case_words = len(r_upper_words.findall(body))
             totat_letters = len(r_words.findall(body))
@@ -62,16 +90,21 @@ def case(row):
             output['title_case_words_to_words_ratio'] = upper_case_words / total_words
             output['upper_case_letters_to_letters_ratio'] = upper_case_letters / total_letters
 
+    return output
+
+def generate_subject_features(row):
+    return {}
 
 # Functions which create the output features
 transforms = [
     lambda row: {'class': row['class']},
     lambda row: {'length': len(row['email'])},
-    #generate_multipart_number,
     generate_content_types,
     generate_number_of_spaces,
-    number_of_images,
-    case]
+    generate_number_of_images,
+    generate_contact_numbers,
+    generate_upper_to_lower_case_ratios,
+    generate_subject_features]
 
 # Set up thread pool
 def transform_row(x):
