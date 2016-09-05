@@ -3,7 +3,7 @@ import re
 import multiprocessing
 import collections
 from load_development_dataset import df 
-
+from html2text import html2text
 
 def generate_content_types(row):
     email = row['email']
@@ -41,6 +41,28 @@ def number_of_images(row):
     
     return output
 
+def case(row):
+    email = row['email']
+    output = collections.defaultdict(float)
+    r_words = re.compile(r'\b\w+\b')
+    r_upper_words = re.compile(r'\b[A-Z]\w*\b')
+    r_letters = re.compile(r'\[a-z]')
+    r_upper_letters = re.compile(r'[A-Z]')
+    for content in email.walk():
+        content_type = content.get_content_type()
+        if content_type[:4] in ['text', 'html']:
+            if content_type.startswith('text/'):
+                body = content.get_payload()
+            elif content_type.startswith('html/'):
+                body = html2text(content.get_payload())
+            totat_words = len(r_words.findall(body))
+            upper_case_words = len(r_upper_words.findall(body))
+            totat_letters = len(r_words.findall(body))
+            upper_case_letters = len(r_upper_words.findall(body))
+            output['title_case_words_to_words_ratio'] = upper_case_words / total_words
+            output['upper_case_letters_to_letters_ratio'] = upper_case_letters / total_letters
+
+
 # Functions which create the output features
 transforms = [
     lambda row: {'class': row['class']},
@@ -48,7 +70,8 @@ transforms = [
     #generate_multipart_number,
     generate_content_types,
     generate_number_of_spaces,
-    number_of_images]
+    number_of_images,
+    case]
 
 # Set up thread pool
 def transform_row(x):
