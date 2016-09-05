@@ -5,12 +5,11 @@ import collections
 from load_development_dataset import df 
 
 
-def generate_content_types(row):
-    email = row['email']
+def generate_content_types(email):
     output = collections.defaultdict(bool)
     check = ['x-world', 'application', 'text', 'text/plain', 'text/html', 'video', 'audio', 'image', 'drawing', 'model', 'multipart', 'x-conference', 'i-world', 'music', 'message', 'x-music', 'www', 'chemical', 'paleovu', 'windows', 'xgl']
     
-    for part in row['email'].walk():
+    for part in email.walk():
         ct = part.get_content_type()
         
         for kind in check:
@@ -18,16 +17,15 @@ def generate_content_types(row):
     
     return output
 
-def generate_number_of_spaces(row):
-    email = str(row['email'])
+def generate_number_of_spaces(email):
+    email = str(email)
     
     return {
         'spaces': email.count(' '),
         'newlines': email.count('\n')
     }
 
-def generate_number_of_images(row):
-    email = row['email']
+def generate_number_of_images(email):
     output = { 'multipart_number': 0, 'number_of_images': 0 }
     rgx = re.compile('\.(jpeg|jpg|png|gif|bmp)')
     
@@ -41,7 +39,7 @@ def generate_number_of_images(row):
     
     return output
 
-def generate_contact_numbers(row):
+def generate_contact_numbers(email):
     def normalize(contacts):
         if pd.isnull(contacts):
             return []
@@ -57,16 +55,15 @@ def generate_contact_numbers(row):
     for header in check:
         output[header] = 0
     
-    for header in row['email'].keys():
+    for header in email.keys():
         header = header.lower()
         
         if header in check:
-            output[header] = len(normalize(row['email'][header]))
+            output[header] = len(normalize(email[header]))
     
     return output
 
-def generate_upper_to_lower_case_ratios(row):
-    email = row['email']
+def generate_upper_to_lower_case_ratios(email):
     output = collections.defaultdict(float)
 
     r_words = re.compile(r'\b\w+\b')
@@ -92,13 +89,33 @@ def generate_upper_to_lower_case_ratios(row):
 
     return output
 
-def generate_subject_features(row):
-    return {}
+def generate_subject_features(email):
+    def get_subject(x):
+        try:
+            s = re.search(r'^(fwd|re|fw):', x['subject'], re.IGNORECASE)
+
+            if s is not None:
+                return s.group(1).lower()
+        except:
+            pass
+
+        return None
+    
+    subject = get_subject(email)
+    output = {
+        'is_fwd': False,
+        'is_re': False,
+        'is_fw': False
+    }
+    
+    if subject is not None:
+        output['is_'+subject] = True
+
+    return output
 
 # Functions which create the output features
 transforms = [
-    lambda row: {'class': row['class']},
-    lambda row: {'length': len(row['email'])},
+    lambda email: {'length': len(email)},
     generate_content_types,
     generate_number_of_spaces,
     generate_number_of_images,
@@ -109,10 +126,13 @@ transforms = [
 # Set up thread pool
 def transform_row(x):
     (index, row) = x
-    current = {}
+
+    current = {
+        'class': row['class']
+    }
     
     for function in transforms:
-        current.update(function(row))
+        current.update(function(row['email']))
     
     return current
 
