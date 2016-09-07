@@ -64,14 +64,11 @@ def generate_contact_numbers(email):
 def generate_upper_to_lower_case_ratios(email):
     import html2text
 
-    output = {
-        'title_case_words_to_words_ratio': 0.0,
-        'upper_case_letters_to_letters_ratio': 0.0
-    }
+    output = { 'title_case_words_to_words_ratio': 0.0, 'upper_case_letters_to_letters_ratio': 0.0 }
 
     r_words = re.compile(r'\b\w+\b')
     r_upper_words = re.compile(r'\b[A-Z]\w*\b')
-    r_letters = re.compile(r'\[a-z]')
+    r_letters = re.compile(r'[a-z]')
     r_upper_letters = re.compile(r'[A-Z]')
 
     for content in email.walk():
@@ -102,9 +99,10 @@ def generate_upper_to_lower_case_ratios(email):
 
     return output
 
-def generate_subject_features(email):
+def generate_subject_is_chain(email):
     def get_subject(email):
         try:
+            # TODO: check what happens with ?=?
             s = re.search(r'^(fwd|re|fw):', email['subject'], re.IGNORECASE)
 
             if s is not None:
@@ -116,6 +114,7 @@ def generate_subject_features(email):
     
     subject = get_subject(email)
     output = {
+        'has_subject': True,
         'is_fwd': False,
         'is_re': False,
         'is_fw': False
@@ -123,6 +122,34 @@ def generate_subject_features(email):
     
     if subject is not None:
         output['is_'+subject] = True
+    else:
+        output['has_subject'] = False
+
+    return output
+
+def generate_number_of_links(email):
+    output = { 'number_of_links': 0 }
+    r_links = re.compile('(https?|ftps?|mailto|file|data)://')
+
+    for part in email.walk():
+        if part.get_content_type().startswith('text'):
+            output['number_of_links'] += len(r_links.findall(part.get_payload()))
+
+    return output
+
+def generate_is_mailing_list(email):
+    output = {
+        'is_mailing_list_by_headers': False,
+        'is_mailing_list_by_subject': False,
+        'is_mailing_list_by_address': False
+    }
+
+    check = ['list-id', 'list-post', 'list-help', 'list-unsubscribe', 'list-owner']
+
+    output['is_mailing_list_by_headers'] = len([x for x in check if x in email.keys()]) > 0
+    output['is_mailing_list_by_subject'] = re.search(r'^\[[A-Za-z_\-]{2,}\]') is not None
+    # TODO: implement function to detect email address, domain, username, and maybe name.
+    #output['is_mailing_list_by_address'] = 
 
     return output
 
@@ -135,7 +162,9 @@ transforms = [
     generate_number_of_images,
     generate_contact_numbers,
     generate_upper_to_lower_case_ratios,
-    generate_subject_features]
+    generate_subject_is_chain,
+    generate_number_of_links,
+    generate_is_mailing_list]
 
 # Process a single row, as received from the pandas.DataFrame iterator
 def transform_row(x):
@@ -145,6 +174,9 @@ def transform_row(x):
         'class': row['class']
     }
     
+    # Parse email into Python's class
+    row['email'] = email.message_from_string(row['email'])
+
     # Apply the transform features to the email object
     for function in transforms:
         current.update(function(row['email']))
@@ -158,7 +190,6 @@ if __name__ == '__main__':
 
     # Load dataset
     dataset = pandas.read_msgpack('./data/development.msg', encoding='latin-1')
-    dataset['email'] = dataset['email'].apply(email.message_from_string)
 
     # Set up multiprocessing pool
     # WARNING: number of threads should be no more than #cores + 1
