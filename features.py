@@ -10,6 +10,12 @@ def generate_content_type(email):
              'multipart', 'x-conference', 'i-world', 'music', 'message', 'x-music', 'www', 'chemical', 'paleovu',
              'windows', 'xgl']
 
+    features['number_of_multiparts'] = 0
+    features['number_of_mentioned_images'] = 0
+
+    for prefix in content_type_prefixes:
+        features['number_of_' + prefix + '_multiparts'] = 0
+
     for part in email.walk():
         content_type = part.get_content_type()
 
@@ -60,12 +66,21 @@ def generate_email_counts(email):
             'number_of_question_marks_in_subject': email['subject'].count('?'),
             'number_of_exclamation_marks_in_subject': email['subject'].count('!'),
         })
+    else:
+        features.update({
+            'length_of_subject': -1,
+            'number_of_spaces_in_subject': -1,
+            'number_of_question_marks_in_subject': -1,
+            'number_of_exclamation_marks_in_subject': -1,
+        })
 
     people_information_headers = ['to', 'x-to', 'from', 'x-from', 'cc', 'x-cc', 'bcc', 'x-bcc']
 
     for header in people_information_headers:
         if header in email.keys():
             features['number_of_people_in_' + header] = len(extract_target_list(email[header]))
+        else:
+            features['number_of_people_in_' + header] = -1
 
     return features
 
@@ -158,7 +173,8 @@ def generate_subject_is_chain(email):
         return None
 
     subject = get_subject(email)
-    output = {
+
+    features = {
         'has_subject': True,
         'is_fwd': False,
         'is_re': False,
@@ -166,26 +182,27 @@ def generate_subject_is_chain(email):
     }
 
     if subject is not None:
-        output['is_' + subject] = True
+        features['is_' + subject] = True
     else:
-        output['has_subject'] = False
+        features['has_subject'] = False
 
-    return output
+    return features
 
 
 def generate_number_of_links(email):
-    output = {'number_of_links': 0}
+    features = { 'number_of_links': 0 }
+
     r_links = re.compile('(https?|ftps?|mailto|file|data)://')
 
     for part in email.walk():
         if part.get_content_type().startswith('text'):
-            output['number_of_links'] += len(r_links.findall(part.get_payload()))
+            features['number_of_links'] += len(r_links.findall(part.get_payload()))
 
-    return output
+    return features
 
 
 def generate_is_mailing_list(email):
-    output = {
+    features = {
         'is_mailing_list_by_headers': False,
         'is_mailing_list_by_subject': False,
         'is_mailing_list_by_address': False
@@ -193,9 +210,9 @@ def generate_is_mailing_list(email):
 
     check = ['list-id', 'list-post', 'list-help', 'list-unsubscribe', 'list-owner']
 
-    output['is_mailing_list_by_headers'] = len([x for x in check if x in email.keys()]) > 0
-    output['is_mailing_list_by_subject'] = re.search(r'^\[[A-Za-z_\-]{2,}\]', email['subject']) is not None if email['subject'] is not None else False
+    features['is_mailing_list_by_headers'] = len([x for x in check if x in email.keys()]) > 0
+    features['is_mailing_list_by_subject'] = re.search(r'^\[[A-Za-z_\-]{2,}\]', email['subject']) is not None if email['subject'] is not None else False
     # TODO: implement function to detect email address, domain, username, and maybe name.
     # output['is_mailing_list_by_address'] =
 
-    return output
+    return features
