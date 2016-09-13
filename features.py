@@ -88,70 +88,78 @@ def generate_email_counts(email):
 def generate_upper_to_lower_case_ratios(email):
     import html2text
 
-    features = {}
-    r_words = re.compile(r'\w+')
-    r_lower_case_words = re.compile(r'[a-z0-9]+')
-    r_upper_case_words = re.compile(r'[A-Z0-9]+')
-    r_start_with_lower_case_words = re.compile(r'[a-z]\w+')
-    r_start_with_upper_case_words = re.compile(r'[A-Z]\w+')
-    r_letters = re.compile(r'[a-zA-Z]')
-    r_lower_case_letters = re.compile(r'[a-z]')
-    r_upper_case_letters = re.compile(r'[A-Z]')
+    features = collections.defaultdict(int)
+
+    regexes = {
+        'words': re.compile(r'\w+'),
+        'lower_case_words': re.compile(r'[a-z0-9]+'),
+        'upper_case_words': re.compile(r'[A-Z0-9]+'),
+        'start_with_lower_case_words': re.compile(r'\b[a-z]\w+'),
+        'start_with_upper_case_words': re.compile(r'\b[A-Z]\w+'),
+        'letters': re.compile(r'[a-zA-Z]'),
+        'lower_case_letters': re.compile(r'[a-z]'),
+        'upper_case_letters': re.compile(r'[A-Z]'),
+        'upper_case_sequence': re.compile(r'[A-Z]+'),
+        'lower_case_sequence': re.compile(r'[a-z]+'),
+        'digits': re.compile(r'[0-9]'),
+        'digit_sequence': re.compile(r'[0-9]+'),
+        'money_count': re.compile(r'(\$|€|£)'),
+        'money_sequence': re.compile(r'(\$+|€+|£+)')
+    }
+
+    for key in regexes:
+        features[key + '_matches'] = -1
+        features[key + '_shortest_match'] = -1
+        features[key + '_longest_match'] = -1
+
+    # TODO: finish
+    symbol_counts = ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '=', '-', '{', '}', '|', '"', '\'', '\\', '[', ']', '/', '?', '>', '<', ',', ':', ';']
 
     for content in email.walk():
         content_type = content.get_content_type()
 
         if content_type in ('text/plain', 'text/html'):
-            if content_type.endswith('plain'):
-                body = content.get_payload()
-            elif content_type.endswith('html'):
-                body = html2text.html2text(content.get_payload())
+            body = content.get_payload()
 
-            total_words = len(r_words.findall(body))
-            total_lower_case_words = len(r_lower_case_words.findall(body))
-            total_upper_case_words = len(r_upper_case_words.findall(body))
-            total_start_with_lower_case_words = len(r_start_with_lower_case_words.findall(body))
-            total_start_with_upper_case_words = len(r_start_with_upper_case_words.findall(body))
-            total_letters = len(r_letters.findall(body))
-            total_lower_case_letters = len(r_lower_case_letters.findall(body))
-            total_upper_case_letters = len(r_upper_case_letters.findall(body))
+            if content_type.endswith('html'):
+                body = html2text.html2text(body)
+
+            for key in regexes:
+                matches = regexes[key].findall(body)
+                lengths = [len(x) for x in matches]
+
+                features[key + '_matches'] += len(matches)
+
+                if len(matches) > 0:
+                    features[key + '_shortest_match'] = min(min(lengths), features[key + '_shortest_match'])
+                    features[key + '_longest_match'] = max(max(lengths), features[key + '_longest_match'])
 
             # We use -1 to mean that the amount could not be computed because of a problem in the data
             # Notice that this is different than not being computed because of a different format
-            features['number_of_words'] = total_words
-            features['number_of_lower_case_words'] = total_lower_case_words
-            features['number_of_upper_case_words'] = total_upper_case_words
-            features['number_of_start_with_lower_case_words'] = total_start_with_lower_case_words
-            features['number_of_start_with_upper_case_words'] = total_start_with_upper_case_words
-
-            if total_words > 0:
-                features['ratio_of_lower_case_words'] = total_lower_case_words / total_words
-                features['ratio_of_upper_case_words'] = total_upper_case_words / total_words
-                features['ratio_of_start_with_lower_case_words'] = total_start_with_lower_case_words / total_words
-                features['ratio_of_start_with_upper_case_words'] = total_start_with_upper_case_words / total_words
+            if features['words_matches'] > 0:
+                features['ratio_of_lower_case_words'] = features['lower_case_words_matches'] / features['words_matches']
+                features['ratio_of_upper_case_words'] = features['upper_case_words_matches'] / features['words_matches']
+                features['ratio_of_start_with_lower_case_words'] = features['start_with_lower_case_words_matches'] / features['words_matches']
+                features['ratio_of_start_with_upper_case_words'] = features['start_with_upper_case_words_matches'] / features['words_matches']
             else:
                 features['ratio_of_lower_case_words'] = -1.0
                 features['ratio_of_upper_case_words'] = -1.0
                 features['ratio_of_start_with_lower_case_words'] = -1.0
                 features['ratio_of_start_with_upper_case_words'] = -1.0
 
-            if total_lower_case_words > 0:
-                features['ratio_of_lower_case_to_start_with_lower_case_words'] = total_start_with_lower_case_words / total_lower_case_words
+            if features['lower_case_words_matches'] > 0:
+                features['ratio_of_lower_case_to_start_with_lower_case_words'] = features['start_with_lower_case_words_matches'] / features['lower_case_words_matches']
             else:
                 features['ratio_of_lower_case_to_start_with_lower_case_words'] = -1.0
 
-            if total_upper_case_words > 0:
-                features['ratio_of_upper_case_to_start_with_upper_case_words'] = total_start_with_upper_case_words / total_upper_case_words
+            if features['upper_case_words_matches'] > 0:
+                features['ratio_of_upper_case_to_start_with_upper_case_words'] = features['start_with_upper_case_words_matches'] / features['upper_case_words_matches']
             else:
                 features['ratio_of_upper_case_to_start_with_upper_case_words'] = -1.0
 
-            features['number_of_letters'] = total_letters
-            features['number_of_total_lower_case_letters'] = total_lower_case_letters
-            features['number_of_total_upper_case_letters'] = total_upper_case_letters
-
-            if total_letters > 0:
-                features['ratio_of_lower_case_letters'] = total_lower_case_letters / total_letters
-                features['ratio_of_upper_case_letters'] = total_upper_case_letters / total_letters
+            if features['letters_matches'] > 0:
+                features['ratio_of_lower_case_letters'] = features['lower_case_letters_matches'] / features['letters_matches']
+                features['ratio_of_upper_case_letters'] = features['upper_case_letters_matches'] / features['letters_matches']
             else:
                 features['ratio_of_lower_case_letters'] = -1.0
                 features['ratio_of_upper_case_letters'] = -1.0
