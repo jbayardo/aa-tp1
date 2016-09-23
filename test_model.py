@@ -1,17 +1,7 @@
 import email
-import sklearn.naive_bayes
-import sklearn.neighbors
-import sklearn.pipeline
-import sklearn.feature_selection
-import sklearn.feature_extraction.text
-import sklearn.tree
-import sklearn.ensemble
-import sklearn.decomposition
 from nltk.corpus import stopwords
-import nltk
 import features
 import pandas
-import numpy as np
 from transforms import *
 
 

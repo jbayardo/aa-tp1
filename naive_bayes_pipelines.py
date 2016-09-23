@@ -1,9 +1,10 @@
 from sklearn import *
-from transforms import *
+import pandas
 import nltk
 import re
 import email
-import pandas
+from transforms import *
+
 
 class Lemmatizer(sklearn.pipeline.BaseEstimator, sklearn.pipeline.TransformerMixin):
     def __init__(self):
@@ -58,17 +59,16 @@ class Lemmatizer(sklearn.pipeline.BaseEstimator, sklearn.pipeline.TransformerMix
     def transform(self, x, y=None):
         return [self.process(z) for z in x]
 
-def extrP(s):
-    try:
-        return str(s.get_payload()[0])
-    except:
-        return ''
+
+def extract_email_payloads(email):
+    return '\n'.join(map(str, email.get_payload()))
+
 
 if __name__ == '__main__':
     pipeline = sklearn.pipeline.Pipeline([
         # TODO: header removal
         ('transform_email', FunctionMapper(email.message_from_string)),
-        ('extract_payload', FunctionMapper(extrP)),
+        ('extract_payload', FunctionMapper(extract_email_payloads)),
         # TODO: symbol removal
         # TODO: whitespace single character separation removal
         ('lemmatizer', Lemmatizer()),
@@ -85,16 +85,7 @@ if __name__ == '__main__':
         ('train_naive_bayes', sklearn.naive_bayes.MultinomialNB())
     ])
 
-    # Load processed data
-    dataset = pandas.read_msgpack('./data/development.msg', encoding='latin-1')
-    import math
-
-    dataset = dataset.sample(math.ceil(len(dataset) * 0.5))
-
-    # Separate features and labels
-    features = dataset['email'].values
-    labels = dataset['class'].apply(lambda x: x == 1).values
-
-    print(len(labels))
-    res = sklearn.cross_validation.cross_val_score(pipeline, features, labels, cv=2, scoring='roc_auc', verbose=10)
+    import load
+    features, labels = load.load_dataset()
+    res = sklearn.cross_validation.cross_val_score(pipeline, features, labels, cv=10, scoring='roc_auc', verbose=10)
     print(res)
