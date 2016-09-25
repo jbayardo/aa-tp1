@@ -27,7 +27,7 @@ df = pandas.DataFrame(output)
 
 # Split and save holdout and training data
 # We hold out about 10% of the data
-numpy.random.seed(0xFEDEFA50DEAD)
+numpy.random.seed(0xFEDEFA50)
 mask = numpy.random.rand(len(df)) < 0.8
 
 development = df[mask]

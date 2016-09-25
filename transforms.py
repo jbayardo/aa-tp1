@@ -1,5 +1,5 @@
 import sklearn
-
+from sklearn import *
 
 # Transforms any function into a map over the sample
 class FunctionMapper(sklearn.pipeline.BaseEstimator, sklearn.pipeline.TransformerMixin):

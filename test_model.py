@@ -3,7 +3,7 @@ from nltk.corpus import stopwords
 import features
 import pandas
 from transforms import *
-
+from sklearn import *
 
 if __name__ == '__main__':
     pipeline = sklearn.pipeline.Pipeline([
