@@ -164,6 +164,8 @@ def generate_upper_to_lower_case_ratios(email):
                 features['ratio_of_lower_case_letters'] = -1.0
                 features['ratio_of_upper_case_letters'] = -1.0
 
+            break
+
     return features
 
 

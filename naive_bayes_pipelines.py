@@ -6,77 +6,49 @@ import email
 from transforms import *
 
 
-class Lemmatizer(sklearn.pipeline.BaseEstimator, sklearn.pipeline.TransformerMixin):
+def extract_email_payloads(email):
+    import html2text
+    output = ''
+
+    for part in email.walk():
+        if part.get_content_type().startswith('text'):
+            if part.get_content_type().endswith('html'):
+                output += str(html2text.html2text(part.get_payload()))
+            else:
+                output += str(part.get_payload())
+            output += '\n'
+
+    return output
+
+
+class EmailTokenizer():
     def __init__(self):
-        # This assumes we're using English in order to remove common words
-        self.stopwords = nltk.corpus.stopwords.words('english')
         # Tokenize into sentences using Punkt tokenizer
         # See: http://www.nltk.org/api/nltk.tokenize.html
         self.sentence_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
         # Words are separated by whitespaces
-        self.word_tokenizer = nltk.tokenize.WhitespaceTokenizer()
-        # Words are turned into their lemmas using WordNet
-        self.lemmatizer = nltk.stem.WordNetLemmatizer()
+        self.word_tokenizer = nltk.tokenize.RegexpTokenizer('\s+|\.+')
 
-    def fit(self, x, y=None):
-        return self
-
-    # Partly inspired on https://bbengfort.github.io/tutorials/2016/05/19/text-classification-nltk-sckit-learn.html
-    def process(self, z):
-        # Remove starting and ending whitespaces
-        z = z.strip()
-
-        # Merge repeated non word characters into single ones
-        (z, replacements) = re.subn(r'(\W)\1+', r'\1', z)
-        # Collapse more than three occurrences of the same letter into two (this assumes we're using English)
-        (z, replacements) = re.subn(r'(\[a-zA-Z])\1{2,}', r'\1\1', z)
-        # TODO: turn words with \/ into V, and so on
+    def tokenize_email(self, email):
         output = []
-
-        for sentence in self.sentence_tokenizer.tokenize(z):
-            tokens = self.word_tokenizer.tokenize(sentence)
-            tokens = nltk.pos_tag(tokens)
-
-            for token, tag in tokens:
-                # Avoid stopwords
-                if token in self.stopwords:
-                    continue
-
-                # Translate into WordNet tag
-                tag = {
-                    'N': nltk.corpus.wordnet.NOUN,
-                    'V': nltk.corpus.wordnet.VERB,
-                    'R': nltk.corpus.wordnet.ADV,
-                    'J': nltk.corpus.wordnet.ADJ
-                }.get(tag[0], nltk.corpus.wordnet.NOUN)
-
-                # Lemmatize
-                lemma = self.lemmatizer.lemmatize(token, tag)
-                output.append(lemma)
-
-        return ' '.join(output)
-
-    def transform(self, x, y=None):
-        return [self.process(z) for z in x]
-
-
-def extract_email_payloads(email):
-    return '\n'.join(map(str, email.get_payload()))
+        for sentence in self.sentence_tokenizer.tokenize(email):
+            output.extend(self.word_tokenizer.tokenize(sentence))
+        return output
 
 
 if __name__ == '__main__':
     pipeline = sklearn.pipeline.Pipeline([
-        # TODO: header removal
         ('transform_email', FunctionMapper(email.message_from_string)),
         ('extract_payload', FunctionMapper(extract_email_payloads)),
-        # TODO: symbol removal
-        # TODO: whitespace single character separation removal
-        ('lemmatizer', Lemmatizer()),
         # Using a TFIDF vectorizer will let us inversely weight common sequences
         ('generate_bag_of_words', sklearn.feature_extraction.text.TfidfVectorizer(
-            ngram_range=(1, 4),
+            ngram_range=(1, 16),
             use_idf=True,
-            sublinear_tf=True
+            sublinear_tf=True,
+            stop_words=nltk.corpus.stopwords.words('english'),
+            analyzer='word',
+            # This lets us tokenize emails however we see fit
+            tokenizer=EmailTokenizer().tokenize_email
         )),
         # Helps prevent synonyms
         #('bow_pca', sklearn.decomposition.TruncatedSVD(n_components=2500)),
@@ -86,6 +58,6 @@ if __name__ == '__main__':
     ])
 
     import load
-    features, labels = load.load_dataset()
-    res = sklearn.cross_validation.cross_val_score(pipeline, features, labels, cv=10, scoring='roc_auc', verbose=10)
+    features, labels = load.load_dataset(sample=0.2)
+    res = sklearn.cross_validation.cross_val_score(pipeline, features, labels, cv=5, scoring='precision', verbose=10)
     print(res)
