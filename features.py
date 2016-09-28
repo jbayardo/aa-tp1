@@ -1,6 +1,33 @@
 import collections
 import re
 
+class EmailTokenizer():
+    def __init__(self):
+        # Tokenize into sentences using Punkt tokenizer
+        # See: http://www.nltk.org/api/nltk.tokenize.html
+        self.sentence_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+        # Words are separated by whitespaces
+        self.word_tokenizer = nltk.tokenize.RegexpTokenizer('\s+|\.+')
+
+    def tokenize_email(self, email):
+        output = []
+        for sentence in self.sentence_tokenizer.tokenize(email):
+            output.extend(self.word_tokenizer.tokenize(sentence))
+        return output
+        
+def extract_email_payloads(email):
+    import html2text
+    output = ''
+
+    for part in email.walk():
+        if part.get_content_type().startswith('text'):
+            if part.get_content_type().endswith('html'):
+                output += str(html2text.html2text(part.get_payload()))
+            else:
+                output += str(part.get_payload())
+            output += '\n'
+
+    return output
 
 def generate_content_type(email):
     features = collections.defaultdict(int)
@@ -163,6 +190,8 @@ def generate_upper_to_lower_case_ratios(email):
             else:
                 features['ratio_of_lower_case_letters'] = -1.0
                 features['ratio_of_upper_case_letters'] = -1.0
+
+            break
 
     return features
 
