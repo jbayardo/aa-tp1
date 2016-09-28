@@ -3,6 +3,7 @@ import features
 import pandas
 import nltk
 import re
+import sklearn
 from transforms import *
 from sklearn import *
 
@@ -40,13 +41,24 @@ if __name__ == '__main__':
                 ('replace_nans', sklearn.preprocessing.Imputer(missing_values='NaN', strategy='mean')),
                 #('pca', sklearn.decomposition.RandomizedPCA(whiten=True)),
                 ('train_other_models', sklearn.pipeline.FeatureUnion([
-                    ('train_knn', ProbKNN()),
-                    ('train_svm', ProbSVC(probability=True))
+                    ('train_knn', sklearn.neighbors.KNeighborsClassifier(weights='distance')),
+                    ('train_svm', ProbSVC(probability=True, kernel='poly', degree=1, C=1)),
+                    ('train_tree', sklearn.tree.DecisionTreeClassifier(criterion= 'entropy',
+                                                               max_depth= None,
+                                                               max_leaf_nodes= 20,
+                                                               min_samples_leaf= 5,
+                                                               min_samples_split= 10))
                 ]))
             ]))
         ], n_jobs=1)),
         # We have 8 possibilities by this stage
-        ('select_output_class', sklearn.ensemble.RandomForestClassifier(n_estimators=32, n_jobs=1))
+        ('select_output_class', sklearn.ensemble.RandomForestClassifier(n_estimators = 120,
+                                                                        max_depth    = None,
+                                                                        max_features = 15,
+                                                                        min_samples_split = 15,
+                                                                        min_samples_leaf = 5,
+                                                                        bootstrap= True,
+                                                                        criterion= 'entropy'))
     ])
 
     # Load processed data
